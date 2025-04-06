@@ -145,8 +145,8 @@ app.get("/api/player", async (req, res) => {
 // Get player match history
 app.get("/api/history/:playerId", async (req, res) => {
   const playerId = req.params.playerId;
-  const offset = 0; // Fixed offset of 0
-  const limit = 3; // Fixed limit of 3 matches per request
+  const offset = parseInt(req.query.offset) || 0;
+  const limit = parseInt(req.query.limit) || 10;
   
   if (!playerId) {
     return res.status(400).json({ error: "Player ID is required" });
@@ -190,16 +190,16 @@ app.get("/api/history/:playerId", async (req, res) => {
       teams: {
         faction1: {
           team_id: match.teams.faction1.team_id,
-          name: match.teams.faction1.name,
+          nickname: match.teams.faction1.nickname,
           avatar: match.teams.faction1.avatar,
-          roster: match.teams.faction1.roster,
+          players: match.teams.faction1.players || [],
           score: match.results.score.faction1 || 0
         },
         faction2: {
           team_id: match.teams.faction2.team_id,
-          name: match.teams.faction2.name,
+          nickname: match.teams.faction2.nickname,
           avatar: match.teams.faction2.avatar,
-          roster: match.teams.faction2.roster,
+          players: match.teams.faction2.players || [],
           score: match.results.score.faction2 || 0
         }
       },
@@ -213,10 +213,120 @@ app.get("/api/history/:playerId", async (req, res) => {
     formattedMatches.sort((a, b) => b.started_at - a.started_at);
 
     res.json({
-      start: response.data.start,
-      end: response.data.end,
+      start: offset,
+      end: offset + formattedMatches.length,
       items: formattedMatches
     });
+  } catch (error) {
+    handleFaceitError(error, res);
+  }
+});
+
+// Get player bans
+app.get("/api/bans/:playerId", async (req, res) => {
+  const playerId = req.params.playerId;
+  
+  if (!playerId) {
+    return res.status(400).json({ error: "Player ID is required" });
+  }
+
+  console.log('Fetching bans for player:', {
+    player_id: playerId
+  });
+
+  try {
+    const url = `https://open.faceit.com/data/v4/players/${playerId}/bans`;
+    
+    const response = await axios.get(
+      url,
+      { 
+        headers: { 
+          Authorization: `Bearer ${FACEIT_API_KEY}`,
+          'Accept': 'application/json'
+        } 
+      }
+    );
+
+    console.log('Bans Response:', {
+      player_id: playerId,
+      total_bans: response.data.items?.length,
+      raw_response: response.data
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    handleFaceitError(error, res);
+  }
+});
+
+// Get match details
+app.get("/api/matches/:matchId", async (req, res) => {
+  const matchId = req.params.matchId;
+  
+  if (!matchId) {
+    return res.status(400).json({ error: "Match ID is required" });
+  }
+
+  console.log('Fetching match details:', {
+    match_id: matchId
+  });
+
+  try {
+    const url = `https://open.faceit.com/data/v4/matches/${matchId}`;
+    
+    const response = await axios.get(
+      url,
+      { 
+        headers: { 
+          Authorization: `Bearer ${FACEIT_API_KEY}`,
+          'Accept': 'application/json'
+        } 
+      }
+    );
+
+    // Get match stats for Elo changes
+    const statsUrl = `https://open.faceit.com/data/v4/matches/${matchId}/stats`;
+    const statsResponse = await axios.get(
+      statsUrl,
+      { 
+        headers: { 
+          Authorization: `Bearer ${FACEIT_API_KEY}`,
+          'Accept': 'application/json'
+        } 
+      }
+    );
+
+    const matchData = response.data;
+    const statsData = statsResponse.data;
+
+    // Format the response to include match details and stats
+    const formattedData = {
+      match_id: matchData.match_id,
+      game_mode: matchData.game_mode,
+      started_at: matchData.started_at,
+      finished_at: matchData.finished_at,
+      status: matchData.status,
+      teams: {
+        faction1: {
+          ...matchData.teams.faction1,
+          roster: matchData.teams.faction1.roster.map(player => ({
+            ...player,
+            player_stats: statsData.rounds[0]?.teams[0]?.players.find(p => p.player_id === player.player_id) || null
+          }))
+        },
+        faction2: {
+          ...matchData.teams.faction2,
+          roster: matchData.teams.faction2.roster.map(player => ({
+            ...player,
+            player_stats: statsData.rounds[0]?.teams[1]?.players.find(p => p.player_id === player.player_id) || null
+          }))
+        }
+      },
+      results: matchData.results,
+      stats: statsData
+    };
+
+    res.json(formattedData);
   } catch (error) {
     handleFaceitError(error, res);
   }
