@@ -1,0 +1,18 @@
+#ignore modules
+node_modules/
+
+#ignore server
+server/node_modules/
+server/.env
+
+#ignore client
+client/node_modules/
+client/.env
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore logs and temp files
+*.log
+tmp/
