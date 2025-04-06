@@ -4,7 +4,7 @@ import './App.css';
 import { getRecentSearches, addRecentSearch, setCookie } from './utils/cookies';
 
 // Default to production URLs if environment variables are not set
-const SERVER_URL = process.env.SERVER_URL || 'http://localhost:5001';
+const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'http://localhost:5001';
 
 // Configure axios defaults
 axios.defaults.baseURL = SERVER_URL;
