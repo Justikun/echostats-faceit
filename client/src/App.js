@@ -274,7 +274,29 @@ const App = () => {
                   />
                 </div>
                 <div className="player-details">
-                  <h2>{truncateName(playerData.nickname)}</h2>
+                  <div className="player-name-container">
+                    <h2>{truncateName(playerData.nickname)}</h2>
+                    <div className="ban-status-container">
+                      <span className={`ban-status ${bans?.items?.length > 0 ? 'banned' : 'clean'}`}>
+                        {bans?.items?.length > 0 ? (
+                          <>
+                            Banned
+                            <div className="ban-info-tooltip">
+                              <span className="info-icon">ⓘ</span>
+                              <div className="ban-reasons">
+                                {bans.items.map((ban, index) => (
+                                  <div key={index} className="ban-reason">
+                                    <span className="ban-type">{ban.type}:</span>
+                                    <span className="ban-reason-text">{ban.reason}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        ) : 'No bans on record'}
+                      </span>
+                    </div>
+                  </div>
                   <div className="player-meta">
                     <span className="player-country">{playerData.country}</span>
                     <span className="player-elo">Elo: {playerData.games?.cs2?.faceit_elo || 'N/A'}</span>

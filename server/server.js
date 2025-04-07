@@ -11,7 +11,8 @@ const SERVER_URL = process.env.SERVER_URL || 'https://api-echostats.jnury.com';
 // Allow both development and production URLs
 const ALLOWED_ORIGINS = [
   'https://echostats.jnury.com',
-  'http://localhost:3000'
+  'http://localhost:3000',
+  'http://192.168.1.170:3000'
 ];
 
 console.log('Server Configuration:', {
