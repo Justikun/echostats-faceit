@@ -4,9 +4,9 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 const FACEIT_API_KEY = process.env.FACEIT_API_KEY;
-const SERVER_URL = process.env.SERVER_URL || 'https://api-echostats.jnury.com';
+const SERVER_URL = process.env.SERVER_URL || 'http://localhost:5001';
 
 // Allow both development and production URLs
 const ALLOWED_ORIGINS = [
@@ -333,6 +333,40 @@ app.get("/api/matches/:matchId", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// Add error handling for the server
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Start the server with error handling
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`Port ${PORT} is already in use. Please try a different port.`);
+    process.exit(1);
+  } else {
+    console.error('Server error:', err);
+  }
+});
+
+// Keep the process running
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received. Shutting down gracefully...');
+  server.close(() => {
+    console.log('Server closed');
+    process.exit(0);
+  });
 });
