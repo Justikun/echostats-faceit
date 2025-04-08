@@ -1,0 +1,15 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Technical stack
+- Framework, use React with Next.js
+- Styling, use Tailwind CSS
+- Component library, Shadcn
+- Data Visualization, use Chart.js
+- Http Client, use Axios
+- SQL databases, never JSON file storage
+- Seperate databases for dev, test and prod
+- Python tests

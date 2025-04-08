@@ -1,9 +1,8 @@
-const express = require("express");
+const fastify = require("fastify")({ logger: true });
 const axios = require("axios");
-const cors = require('cors');
+const cors = require('@fastify/cors');
 require('dotenv').config();
 
-const app = express();
 const PORT = process.env.PORT || 5001;
 const FACEIT_API_KEY = process.env.FACEIT_API_KEY;
 const SERVER_URL = process.env.SERVER_URL || 'http://localhost:5001';
@@ -15,34 +14,32 @@ const ALLOWED_ORIGINS = [
   'http://192.168.1.170:3000'
 ];
 
-console.log('Server Configuration:', {
+fastify.log.info('Server Configuration:', {
   SERVER_URL,
   ALLOWED_ORIGINS
 });
 
 if (!FACEIT_API_KEY) {
-  console.error('FACEIT_API_KEY is required in environment variables');
+  fastify.log.error('FACEIT_API_KEY is required in environment variables');
   process.exit(1);
 }
 
-// Enable CORS with specific configuration
-app.use(cors({
-  origin: function(origin, callback) {
+// Register CORS
+fastify.register(cors, {
+  origin: (origin, cb) => {
     if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true);
+      cb(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      cb(new Error('Not allowed by CORS'), false);
     }
   },
   methods: ['GET', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-app.use(express.json());
+});
 
 // Helper function to handle Faceit API errors
-const handleFaceitError = (error, res) => {
-  console.error("Faceit API Error:", {
+const handleFaceitError = (error, reply) => {
+  fastify.log.error("Faceit API Error:", {
     message: error.message,
     response: error.response ? {
       status: error.response.status,
@@ -54,43 +51,43 @@ const handleFaceitError = (error, res) => {
   if (error.response) {
     switch (error.response.status) {
       case 400:
-        return res.status(400).json({ error: "Bad request" });
+        return reply.code(400).send({ error: "Bad request" });
       case 401:
-        return res.status(401).json({ error: "Invalid API key" });
+        return reply.code(401).send({ error: "Invalid API key" });
       case 403:
-        return res.status(403).json({ error: "Forbidden" });
+        return reply.code(403).send({ error: "Forbidden" });
       case 404:
-        return res.status(404).json({ error: "Player not found" });
+        return reply.code(404).send({ error: "Player not found" });
       case 429:
-        return res.status(429).json({ 
+        return reply.code(429).send({ 
           error: "Rate limit exceeded",
           retryAfter: error.response.headers['retry-after']
         });
       case 503:
-        return res.status(503).json({ error: "Faceit service temporarily unavailable" });
+        return reply.code(503).send({ error: "Faceit service temporarily unavailable" });
       default:
-        return res.status(500).json({ 
+        return reply.code(500).send({ 
           error: "Failed to fetch data from Faceit",
           message: error.response.data
         });
     }
   }
   
-  return res.status(500).json({ 
+  return reply.code(500).send({ 
     error: "Internal server error",
     message: error.message
   });
 };
 
 // Get player data
-app.get("/api/player", async (req, res) => {
-  const nickname = req.query.nickname;
+fastify.get("/api/player", async (request, reply) => {
+  const nickname = request.query.nickname;
   
   if (!nickname) {
-    return res.status(400).json({ error: "Nickname is required" });
+    return reply.code(400).send({ error: "Nickname is required" });
   }
 
-  console.log('Fetching player data for:', {
+  fastify.log.info('Fetching player data for:', {
     nickname: nickname
   });
 
@@ -108,7 +105,7 @@ app.get("/api/player", async (req, res) => {
     );
     
     const playerData = response.data;
-    console.log('Player Data Response:', {
+    fastify.log.info('Player Data Response:', {
       nickname: nickname,
       player_id: playerData.player_id,
       raw_response: response.data
@@ -137,23 +134,23 @@ app.get("/api/player", async (req, res) => {
       verified: playerData.verified
     };
     
-    res.json(formattedData);
+    return formattedData;
   } catch (error) {
-    handleFaceitError(error, res);
+    return handleFaceitError(error, reply);
   }
 });
 
 // Get player match history
-app.get("/api/history/:playerId", async (req, res) => {
-  const playerId = req.params.playerId;
-  const offset = parseInt(req.query.offset) || 0;
-  const limit = parseInt(req.query.limit) || 10;
+fastify.get("/api/history/:playerId", async (request, reply) => {
+  const playerId = request.params.playerId;
+  const offset = parseInt(request.query.offset) || 0;
+  const limit = parseInt(request.query.limit) || 10;
   
   if (!playerId) {
-    return res.status(400).json({ error: "Player ID is required" });
+    return reply.code(400).send({ error: "Player ID is required" });
   }
 
-  console.log('Fetching match history for player:', {
+  fastify.log.info('Fetching match history for player:', {
     player_id: playerId,
     offset: offset,
     limit: limit
@@ -172,7 +169,7 @@ app.get("/api/history/:playerId", async (req, res) => {
       }
     );
 
-    console.log('Match History Response:', {
+    fastify.log.info('Match History Response:', {
       player_id: playerId,
       total_matches: response.data.items?.length,
       raw_response: response.data
@@ -213,25 +210,25 @@ app.get("/api/history/:playerId", async (req, res) => {
     // Sort matches by date (newest first)
     formattedMatches.sort((a, b) => b.started_at - a.started_at);
 
-    res.json({
+    return {
       start: offset,
       end: offset + formattedMatches.length,
       items: formattedMatches
-    });
+    };
   } catch (error) {
-    handleFaceitError(error, res);
+    return handleFaceitError(error, reply);
   }
 });
 
 // Get player bans
-app.get("/api/bans/:playerId", async (req, res) => {
-  const playerId = req.params.playerId;
+fastify.get("/api/bans/:playerId", async (request, reply) => {
+  const playerId = request.params.playerId;
   
   if (!playerId) {
-    return res.status(400).json({ error: "Player ID is required" });
+    return reply.code(400).send({ error: "Player ID is required" });
   }
 
-  console.log('Fetching bans for player:', {
+  fastify.log.info('Fetching bans for player:', {
     player_id: playerId
   });
 
@@ -248,27 +245,27 @@ app.get("/api/bans/:playerId", async (req, res) => {
       }
     );
 
-    console.log('Bans Response:', {
+    fastify.log.info('Bans Response:', {
       player_id: playerId,
       total_bans: response.data.items?.length,
       raw_response: response.data
     });
 
-    res.json(response.data);
+    return response.data;
   } catch (error) {
-    handleFaceitError(error, res);
+    return handleFaceitError(error, reply);
   }
 });
 
 // Get match details
-app.get("/api/matches/:matchId", async (req, res) => {
-  const matchId = req.params.matchId;
+fastify.get("/api/matches/:matchId", async (request, reply) => {
+  const matchId = request.params.matchId;
   
   if (!matchId) {
-    return res.status(400).json({ error: "Match ID is required" });
+    return reply.code(400).send({ error: "Match ID is required" });
   }
 
-  console.log('Fetching match details:', {
+  fastify.log.info('Fetching match details:', {
     match_id: matchId
   });
 
@@ -327,46 +324,46 @@ app.get("/api/matches/:matchId", async (req, res) => {
       stats: statsData
     };
 
-    res.json(formattedData);
+    return formattedData;
   } catch (error) {
-    handleFaceitError(error, res);
+    return handleFaceitError(error, reply);
   }
 });
 
 // Add error handling for the server
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err);
+  fastify.log.error('Uncaught Exception:', err);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  fastify.log.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 // Start the server with error handling
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-}).on('error', (err) => {
-  if (err.code === 'EADDRINUSE') {
-    console.error(`Port ${PORT} is already in use. Please try a different port.`);
+const start = async () => {
+  try {
+    await fastify.listen({ port: PORT, host: '0.0.0.0' });
+    fastify.log.info(`Server is running on port ${PORT}`);
+  } catch (err) {
+    fastify.log.error('Error starting server:', err);
     process.exit(1);
-  } else {
-    console.error('Server error:', err);
   }
-});
+};
 
-// Keep the process running
-process.on('SIGTERM', () => {
-  console.log('SIGTERM received. Shutting down gracefully...');
-  server.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
+start();
 
-process.on('SIGINT', () => {
-  console.log('SIGINT received. Shutting down gracefully...');
-  server.close(() => {
-    console.log('Server closed');
+// Graceful shutdown handling
+const gracefulShutdown = async (signal) => {
+  fastify.log.info(`${signal} received. Shutting down gracefully...`);
+  try {
+    await fastify.close();
+    fastify.log.info('Server closed');
     process.exit(0);
-  });
-});
+  } catch (err) {
+    fastify.log.error('Error during shutdown:', err);
+    process.exit(1);
+  }
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

@@ -58,9 +58,17 @@ npm start
 
 ## Project Structure
 
-- `client/` - Frontend React application
-- `server/` - Backend Express server
-- `package.json` - Project dependencies and scripts
+- `client-next/`: New Next.js frontend application (recommended)
+- `client/`: Legacy Create React App frontend
+- `server/`: Backend API running on Fastify
+
+## Migration Notes
+
+This project has been migrated from:
+- Frontend: Create React App → Next.js
+- Backend: Express.js → Fastify
+
+To use the new Next.js frontend, follow the instructions in the `client-next/README.md` file.
 
 ## Contributing
 
